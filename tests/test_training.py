@@ -12,6 +12,8 @@ else:
     from_checkpoint=False
 
 X,_=read_dataset(dataset_path,istrain=True)
+X_val,_=read_dataset('../data/test_imgs')
+
 dataset_name=dataset_path.split('/')[-1]
 
 try:
@@ -27,7 +29,6 @@ except:
     pass
 
 
-
 checkpoint_dir='checkpoints/'+dataset_name+'/'
 try:
     os.makedirs(checkpoint_dir)
@@ -35,4 +36,4 @@ except:
     pass
 last_epoch_file='last_epoch_'+dataset_name+'.txt'
 
-training_CAE(log_dir,checkpoint_dir,last_epoch_file).train(X['train'],X['test'],int(max_epochs),int(batch_size),from_checkpoint,dataset_name)
+training_CAE(log_dir,checkpoint_dir,last_epoch_file).train(X,X_val,int(max_epochs),int(batch_size),from_checkpoint)
