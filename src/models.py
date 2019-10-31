@@ -12,6 +12,10 @@ def save(model, path):
     with open(path, 'wb') as f:
         pickle.dump(model, f)
 
+def load(path):
+    with open(path, 'rb') as f:
+        model=pickle.load(f)
+    return model
 
 class BaseEncoder(tf.keras.Model):
     def __init__(self):
@@ -93,7 +97,7 @@ class Encoder:
     def __init__(self, models):
         self.models = models
 
-    def call(self, x):
+    def __call__(self, x):
         img_norm = x / 255
 
         img_channels = convert_to_colourspace(ycbcr_kernel, ycbcr_off,
@@ -112,7 +116,7 @@ class Decoder:
     def __init__(self, models):
         self.models = models
 
-    def call(self, x):
+    def __call__(self, x):
         img_norm = x / 255
         img_channels = tf.split(self.img_norm, 3, axis=3)
 
@@ -150,7 +154,7 @@ class Training:
 
         for epoch in range(self.epoch, max_epochs):
             self.epoch = epoch
-            for images, _ in train_ds:
+            for images in train_ds:
                 with tf.GradientTape() as y_tape, tf.GradientTape(
                 ) as cb_tape, tf.GradientTape() as cr_tape, tf.GradientTape(
                 ) as entropy_tape:
@@ -256,6 +260,12 @@ class Training:
 
 
 if __name__ == "__main__":
-    imgs = read_dataset('../data/imagenet_patches')
-    training_ob = Training()
-    training_ob(imgs, 5, 64, 0.0005)
+    imgs,_ = read_dataset('../data/imagenet_patches')
+    training_obj = Training()
+    training_obj(imgs, 1, 64, 0.0005)
+    encoder=load('encoder.pkl')
+    decoder=load('decoder.pkl')
+    enc_out=encoder(imgs[:10])
+    print(enc_out.numpy().shape)
+    dec_out=decoder(enc_out)
+    print(dec_out.numpy().shape)
