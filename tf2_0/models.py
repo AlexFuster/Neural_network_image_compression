@@ -2,20 +2,10 @@ from tensorflow.keras.layers import Dense, Flatten, Conv2D, Conv2DTranspose
 import tensorflow as tf
 from utils import convert_to_rgb, convert_to_colourspace, ycbcr_kernel, ycbcr_inv_kernel, ycbcr_off, read_dataset
 import numpy as np
-import pickle
+from PIL import Image
 
 get_png_size = lambda xin: tf.strings.length(tf.image.encode_png(xin))
 _CHANNELS = 3
-
-
-def save(model, path):
-    with open(path, 'wb') as f:
-        pickle.dump(model, f)
-
-def load(path):
-    with open(path, 'rb') as f:
-        model=pickle.load(f)
-    return model
 
 class BaseEncoder(tf.keras.Model):
     def __init__(self):
@@ -93,15 +83,25 @@ class Entropynet(tf.keras.Model):
         return x
 
 
-class Encoder:
-    def __init__(self, models):
-        self.models = models
+class ProClass:
+    def __init__(self,model_class):
+        self.models=[]
+        for i in range(_CHANNELS):
+            self.models.append(model_class())
+
+    def load(self,path):
+        for i in range(_CHANNELS):
+            self.models[i].load_weights(path+str(i))
+
+
+class Encoder(ProClass):
+    def __init__(self):
+        super(Encoder, self).__init__(BaseEncoder)
 
     def __call__(self, x):
         img_norm = x / 255
 
-        img_channels = convert_to_colourspace(ycbcr_kernel, ycbcr_off,
-                                              img_norm)
+        img_channels = convert_to_colourspace(ycbcr_kernel, ycbcr_off, img_norm)
 
         encoded = []
         for i, img_channel in enumerate(img_channels):
@@ -112,22 +112,22 @@ class Encoder:
         return np.round(encoded * 255)
 
 
-class Decoder:
-    def __init__(self, models):
-        self.models = models
+class Decoder(ProClass):
+    def __init__(self):
+        super(Decoder, self).__init__(BaseDecoder)
 
     def __call__(self, x):
         img_norm = x / 255
-        img_channels = tf.split(self.img_norm, 3, axis=3)
+        img_channels = tf.split(img_norm, 3, axis=3)
 
         decoded = []
         for i, img_channel in enumerate(img_channels):
             decoded.append(self.models[i](img_channel))
 
         decoded = tf.clip_by_value(
-            convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, decoded), 0, 1)
+            convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, *decoded), 0, 1)
 
-        return np.round(decoded * 255)
+        return np.round(decoded * 255).astype(np.uint8)
 
 
 class Training:
@@ -142,6 +142,7 @@ class Training:
             self.decoder_models.append(BaseDecoder())
 
         self.entropy_model = Entropynet()
+        self.summary_writer = tf.summary.create_file_writer('logs')
 
     def __call__(self, x, max_epochs, batch_size, entropy_loss_coef):
 
@@ -151,7 +152,7 @@ class Training:
         optimizer_entropy = tf.keras.optimizers.Adam()
 
         train_ds = tf.data.Dataset.from_tensor_slices(x).shuffle(10000).batch(batch_size)
-
+        step=0
         for epoch in range(self.epoch, max_epochs):
             self.epoch = epoch
             for images in train_ds:
@@ -161,17 +162,19 @@ class Training:
                     img_norm = images / 255
                     img_norm = tf.image.random_flip_left_right(img_norm)
                     img_norm = tf.image.random_flip_up_down(img_norm)
-                    img_channels = convert_to_colourspace(
-                        ycbcr_kernel, ycbcr_off, img_norm)
+                    img_channels = convert_to_colourspace(ycbcr_kernel, ycbcr_off, img_norm)
                     encoded = []
                     noisy_encoded_channels = []
                     for i, img_channel in enumerate(img_channels):
                         aux_out = self.encoder_models[i](img_channel)
                         encoded.append(aux_out)
-                        noisy_encoded_channels.append(
-                            tf.clip_by_value(
-                                aux_out + tf.random.uniform(
-                                    tf.shape(aux_out), -0.5, 0.5) / 255, 0, 1))
+
+                        noisy_encoded_channels.append(aux_out)
+                        #noisy_encoded_channels.append(
+                        #    tf.clip_by_value(
+                        #        aux_out + tf.random.uniform(
+                        #            tf.shape(aux_out), -0.5, 0.5) / 255, 0, 1))
+
 
                     batch_encoded = tf.concat(encoded, axis=0)
                     aprox_entropy = self.entropy_model(batch_encoded)
@@ -215,8 +218,12 @@ class Training:
                             tf.image.ssim(img_channel, aux_out, max_val=1.0))
                         ssims.append(ssim.numpy())
                         bpp_res.append(bpp_channels[i].numpy().mean())
-                        losses.append((1 - ssim) / 2 +
-                                      entropy_loss_coef * entropy_losses[i])
+                        losses.append((1 - ssim) / 2)# + entropy_loss_coef * entropy_losses[i])
+
+                with self.summary_writer.as_default():
+                    tf.summary.scalar('SSIM_Y', ssims[0],step=step)
+                    tf.summary.scalar('SSIM_Cb', ssims[1],step=step)
+                    tf.summary.scalar('SSIM_Cr', ssims[2],step=step)
 
                 print('EPOCH:', epoch, 'SSIM:', ssims, 'BPP:', bpp_res,
                       'Entropy loss:', aprox_entropy_loss.numpy())
@@ -231,41 +238,50 @@ class Training:
                     2].trainable_variables + self.decoder_models[
                         2].trainable_variables
 
-                entropy_variables = self.entropy_model.trainable_variables
+                #entropy_variables = self.entropy_model.trainable_variables
 
                 gradients_y = y_tape.gradient(losses[0], main_variables_y)
                 gradients_cb = cb_tape.gradient(losses[1], main_variables_cb)
                 gradients_cr = cr_tape.gradient(losses[2], main_variables_cr)
 
-                gradients_entropy = entropy_tape.gradient(
-                    aprox_entropy_loss, entropy_variables)
+                #gradients_entropy = entropy_tape.gradient(
+                #    aprox_entropy_loss, entropy_variables)
 
-                optimizer_entropy.apply_gradients(
-                    zip(gradients_entropy, entropy_variables))
+                #optimizer_entropy.apply_gradients(
+                #    zip(gradients_entropy, entropy_variables))
                 optimizer_y.apply_gradients(zip(gradients_y, main_variables_y))
                 optimizer_cb.apply_gradients(
                     zip(gradients_cb, main_variables_cb))
                 optimizer_cr.apply_gradients(
                     zip(gradients_cr, main_variables_cr))
 
-                self._save()
+                step+=1
+                if step%10==0:
+                    dec_out = tf.clip_by_value(convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, *decoded), 0, 1).numpy()
+                    dec_out=np.round(dec_out * 255).astype(np.uint8)
+                    Image.fromarray(dec_out[0]).save('prueba.png')
+                    self._save()
 
     def _save(self):
-        encoder=Encoder(self.encoder_models)
-        decoder=Decoder(self.decoder_models)
-        save(self,'training.pkl')
-        save(encoder,'encoder.pkl')
-        save(decoder,'decoder.pkl')
+        for i in range(_CHANNELS):
+            self.encoder_models[i].save_weights('checkpoints/encoder{}'.format(i))
+            self.decoder_models[i].save_weights('checkpoints/decoder{}'.format(i))
+
         print('checkpoint saved')
 
 
 if __name__ == "__main__":
     imgs,_ = read_dataset('../data/imagenet_patches')
     training_obj = Training()
-    training_obj(imgs, 1, 64, 0.0005)
-    encoder=load('encoder.pkl')
-    decoder=load('decoder.pkl')
+    training_obj(imgs, 15, 64, 0)
+
+    encoder=Encoder()
+    encoder.load('checkpoints/encoder')
+    decoder=Decoder()
+    decoder.load('checkpoints/decoder')
+
     enc_out=encoder(imgs[:10])
-    print(enc_out.numpy().shape)
+    print(enc_out.shape)
     dec_out=decoder(enc_out)
-    print(dec_out.numpy().shape)
+    print(dec_out.shape)
+    print(imgs.max(),dec_out.max())
