@@ -3,6 +3,7 @@ import tensorflow as tf
 from utils import convert_to_rgb, convert_to_colourspace, ycbcr_kernel, ycbcr_inv_kernel, ycbcr_off, read_dataset
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
 get_png_size = lambda xin: tf.strings.length(tf.image.encode_png(xin))
 _CHANNELS = 3
@@ -156,9 +157,7 @@ class Training:
         for epoch in range(self.epoch, max_epochs):
             self.epoch = epoch
             for images in train_ds:
-                with tf.GradientTape() as y_tape, tf.GradientTape(
-                ) as cb_tape, tf.GradientTape() as cr_tape, tf.GradientTape(
-                ) as entropy_tape:
+                with tf.GradientTape() as y_tape:#, tf.GradientTape() as cb_tape, tf.GradientTape() as cr_tape, tf.GradientTape() as entropy_tape:
                     img_norm = images / 255
                     img_norm = tf.image.random_flip_left_right(img_norm)
                     img_norm = tf.image.random_flip_up_down(img_norm)
@@ -218,12 +217,18 @@ class Training:
                             tf.image.ssim(img_channel, aux_out, max_val=1.0))
                         ssims.append(ssim.numpy())
                         bpp_res.append(bpp_channels[i].numpy().mean())
+                        #losses.append(tf.reduce_mean((img_channel-aux_out)**2,axis=[1,2]))
                         losses.append((1 - ssim) / 2)# + entropy_loss_coef * entropy_losses[i])
+                    if ssims[0] >0.7:
+                        plt.imshow(img_channels[0].numpy()[0,:,:,0])
+                        plt.show()
+                        plt.imshow(decoded[0].numpy()[0,:,:,0])
+                        plt.show()
 
-                with self.summary_writer.as_default():
-                    tf.summary.scalar('SSIM_Y', ssims[0],step=step)
-                    tf.summary.scalar('SSIM_Cb', ssims[1],step=step)
-                    tf.summary.scalar('SSIM_Cr', ssims[2],step=step)
+                #with self.summary_writer.as_default():
+                #    tf.summary.scalar('SSIM_Y', ssims[0],step=step)
+                #    tf.summary.scalar('SSIM_Cb', ssims[1],step=step)
+                #    tf.summary.scalar('SSIM_Cr', ssims[2],step=step)
 
                 print('EPOCH:', epoch, 'SSIM:', ssims, 'BPP:', bpp_res,
                       'Entropy loss:', aprox_entropy_loss.numpy())
@@ -241,8 +246,8 @@ class Training:
                 #entropy_variables = self.entropy_model.trainable_variables
 
                 gradients_y = y_tape.gradient(losses[0], main_variables_y)
-                gradients_cb = cb_tape.gradient(losses[1], main_variables_cb)
-                gradients_cr = cr_tape.gradient(losses[2], main_variables_cr)
+                #gradients_cb = cb_tape.gradient(losses[1], main_variables_cb)
+                #gradients_cr = cr_tape.gradient(losses[2], main_variables_cr)
 
                 #gradients_entropy = entropy_tape.gradient(
                 #    aprox_entropy_loss, entropy_variables)
@@ -250,17 +255,17 @@ class Training:
                 #optimizer_entropy.apply_gradients(
                 #    zip(gradients_entropy, entropy_variables))
                 optimizer_y.apply_gradients(zip(gradients_y, main_variables_y))
-                optimizer_cb.apply_gradients(
-                    zip(gradients_cb, main_variables_cb))
-                optimizer_cr.apply_gradients(
-                    zip(gradients_cr, main_variables_cr))
+                #optimizer_cb.apply_gradients(
+                #    zip(gradients_cb, main_variables_cb))
+                #optimizer_cr.apply_gradients(
+                #    zip(gradients_cr, main_variables_cr))
 
                 step+=1
-                if step%10==0:
-                    dec_out = tf.clip_by_value(convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, *decoded), 0, 1).numpy()
-                    dec_out=np.round(dec_out * 255).astype(np.uint8)
-                    Image.fromarray(dec_out[0]).save('prueba.png')
-                    self._save()
+                #if step%10==0:
+                #    dec_out = tf.clip_by_value(convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, *decoded), 0, 1).numpy()
+                #    dec_out=np.round(dec_out * 255).astype(np.uint8)
+                #    Image.fromarray(dec_out[0]).save('prueba.png')
+                #    self._save()
 
     def _save(self):
         for i in range(_CHANNELS):
