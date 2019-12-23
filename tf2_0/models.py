@@ -3,7 +3,7 @@ import tensorflow as tf
 from utils import convert_to_rgb, convert_to_colourspace, ycbcr_kernel, ycbcr_inv_kernel, ycbcr_off, read_dataset
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 get_png_size = lambda xin: tf.strings.length(tf.image.encode_png(xin))
 _CHANNELS = 3
@@ -11,27 +11,27 @@ _CHANNELS = 3
 class BaseEncoder(tf.keras.Model):
     def __init__(self):
         super(BaseEncoder, self).__init__()
-        self.conv1 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv1 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
         self.conv2 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv3 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv4 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv5 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv6 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv7 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv3 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv4 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv5 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv6 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv7 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         self.conv8 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
 
     def call(self, x):
-        x = self.conv1(x)
+        #x = self.conv1(x)
         x = self.conv2(x)
-        res = x
-        x = self.conv3(x)
-        x = self.conv4(x)
-        x = x + res
-        x = self.conv5(x)
-        res = x
-        x = self.conv6(x)
-        x = self.conv7(x)
-        x = x + res
+        #res = x
+        #x = self.conv3(x)
+        #x = self.conv4(x)
+        #x = x + res
+        #x = self.conv5(x)
+        #res = x
+        #x = self.conv6(x)
+        #x = self.conv7(x)
+        #x = x + res
         x = self.conv8(x)
         return tf.clip_by_value(x, 0, 1)
 
@@ -39,26 +39,26 @@ class BaseEncoder(tf.keras.Model):
 class BaseDecoder(tf.keras.Model):
     def __init__(self):
         super(BaseDecoder, self).__init__()
-        self.dconv1 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
-        self.dconv2 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
-        self.dconv3 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
-        self.dconv4 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
-        self.dconv5 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
-        self.dconv6 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
+        #self.dconv1 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
+        #self.dconv2 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
+        #self.dconv3 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
+        #self.dconv4 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
+        #self.dconv5 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
+        #self.dconv6 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
         self.dconv7 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
         self.dconv8 = Conv2DTranspose(1,5,2,'SAME',activation=tf.nn.leaky_relu)
 
     def call(self, x):
-        x = self.dconv1(x)
-        res = x
-        x = self.dconv2(x)
-        x = self.dconv3(x)
-        x = x + res
-        x = self.dconv4(x)
-        res = x
-        x = self.dconv5(x)
-        x = self.dconv6(x)
-        x = x + res
+        #x = self.dconv1(x)
+        #res = x
+        #x = self.dconv2(x)
+        #x = self.dconv3(x)
+        #x = x + res
+        #x = self.dconv4(x)
+        #res = x
+        #x = self.dconv5(x)
+        #x = self.dconv6(x)
+        #x = x + res
         x = self.dconv7(x)
         x = self.dconv8(x)
         return tf.clip_by_value(x, 0, 1)
@@ -134,13 +134,9 @@ class Decoder(ProClass):
 class Training:
     def __init__(self):
 
-        self.encoder_models = []
-        self.decoder_models = []
+        self.encoder_models = [BaseEncoder(),BaseEncoder()]
+        self.decoder_models = [BaseDecoder(),BaseDecoder()]
         self.epoch = 0
-
-        for i in range(_CHANNELS):
-            self.encoder_models.append(BaseEncoder())
-            self.decoder_models.append(BaseDecoder())
 
         self.entropy_model = Entropynet()
         self.summary_writer = tf.summary.create_file_writer('logs')
@@ -148,8 +144,7 @@ class Training:
     def __call__(self, x, max_epochs, batch_size, entropy_loss_coef):
 
         optimizer_y = tf.keras.optimizers.Adam()
-        optimizer_cb = tf.keras.optimizers.Adam()
-        optimizer_cr = tf.keras.optimizers.Adam()
+        optimizer_cbcr = tf.keras.optimizers.Adam()
         optimizer_entropy = tf.keras.optimizers.Adam()
 
         train_ds = tf.data.Dataset.from_tensor_slices(x).shuffle(10000).batch(batch_size)
@@ -157,25 +152,22 @@ class Training:
         for epoch in range(self.epoch, max_epochs):
             self.epoch = epoch
             for images in train_ds:
-                with tf.GradientTape() as y_tape:#, tf.GradientTape() as cb_tape, tf.GradientTape() as cr_tape, tf.GradientTape() as entropy_tape:
+                with tf.GradientTape() as y_tape, tf.GradientTape() as cbcr_tape, tf.GradientTape() as entropy_tape:
                     img_norm = images / 255
                     img_norm = tf.image.random_flip_left_right(img_norm)
                     img_norm = tf.image.random_flip_up_down(img_norm)
                     img_channels = convert_to_colourspace(ycbcr_kernel, ycbcr_off, img_norm)
-                    encoded = []
-                    noisy_encoded_channels = []
-                    for i, img_channel in enumerate(img_channels):
-                        aux_out = self.encoder_models[i](img_channel)
-                        encoded.append(aux_out)
 
-                        noisy_encoded_channels.append(aux_out)
-                        #noisy_encoded_channels.append(
-                        #    tf.clip_by_value(
-                        #        aux_out + tf.random.uniform(
-                        #            tf.shape(aux_out), -0.5, 0.5) / 255, 0, 1))
+                    img_channels_0=img_channels[0]
+                    img_channels_1=tf.concat(img_channels[1:],axis=0)
 
+                    encoded_0=self.encoder_models[0](img_channels_0)
+                    encoded_1=self.encoder_models[1](img_channels_1)
 
-                    batch_encoded = tf.concat(encoded, axis=0)
+                    noisy_encoded_0=tf.clip_by_value(encoded_0 + tf.random.uniform(tf.shape(encoded_0), -0.5, 0.5) / 255, 0, 1)
+                    noisy_encoded_1=tf.clip_by_value(encoded_1 + tf.random.uniform(tf.shape(encoded_1), -0.5, 0.5) / 255, 0, 1)
+                    """
+                    batch_encoded = tf.concat([encoded_0,encoded_1], axis=0)
                     aprox_entropy = self.entropy_model(batch_encoded)
 
                     encoded_denorm = batch_encoded * 255
@@ -203,51 +195,45 @@ class Training:
                         for chan_entr in tf.split(aprox_entropy, 3, axis=0)
                     ]
 
-                    decoded = []
-                    ssims = []
-                    losses = []
-                    bpp_res = []
                     bpp_channels = tf.split(bpp, 3, axis=0)
+                    """
 
-                    for i, img_channel in enumerate(img_channels):
-                        aux_out = self.decoder_models[i](
-                            noisy_encoded_channels[i])
-                        decoded.append(aux_out)
-                        ssim = tf.reduce_mean(
-                            tf.image.ssim(img_channel, aux_out, max_val=1.0))
-                        ssims.append(ssim.numpy())
-                        bpp_res.append(bpp_channels[i].numpy().mean())
-                        #losses.append(tf.reduce_mean((img_channel-aux_out)**2,axis=[1,2]))
-                        losses.append((1 - ssim) / 2)# + entropy_loss_coef * entropy_losses[i])
-                    if ssims[0] >0.7:
-                        plt.imshow(img_channels[0].numpy()[0,:,:,0])
-                        plt.show()
-                        plt.imshow(decoded[0].numpy()[0,:,:,0])
-                        plt.show()
+                    decoded_0 = self.decoder_models[0](noisy_encoded_0)
+                    ssim_0=tf.reduce_mean(tf.image.ssim(img_channels_0, decoded_0, max_val=1.0))
+                    #loss_0=(1 - ssim_0) / 2 #+ entropy_loss_coef * entropy_losses[0]
+                    loss_0=tf.reduce_mean((img_channels_0-decoded_0)**2)
+
+                    decoded_1 = self.decoder_models[1](noisy_encoded_1)
+                    ssim_1=tf.image.ssim(img_channels_1, decoded_1, max_val=1.0)
+                    ssim_cb,ssim_cr=tf.split(ssim_1,2,axis=0)
+                    ssim_cb=tf.reduce_mean(ssim_cb)
+                    ssim_cr=tf.reduce_mean(ssim_cr)
+                    ssim_1=tf.reduce_mean(ssim_1)
+                    #loss_1=(1 - ssim_1) / 2 #+ entropy_loss_coef * tf.concat(entropy_losses[1:],axis=0)
+                    loss_1=tf.reduce_mean((img_channels_1-decoded_1)**2)
+
+                    ssims=[ssim_0.numpy(),ssim_cb.numpy(),ssim_cr.numpy()]
+                    #bpp_res=[aux_bpp.numpy().mean() for aux_bpp in bpp_channels]
+                    decoded = [decoded_0]+tf.split(decoded_1,2,axis=0)
 
                 #with self.summary_writer.as_default():
-                #    tf.summary.scalar('SSIM_Y', ssims[0],step=step)
-                #    tf.summary.scalar('SSIM_Cb', ssims[1],step=step)
-                #    tf.summary.scalar('SSIM_Cr', ssims[2],step=step)
+                #    tf.summary.scalar('SSIM_Y', ssim_0,step=step)
+                #    tf.summary.scalar('SSIM_Cb', ssim_cb,step=step)
+                #    tf.summary.scalar('SSIM_Cr', ssim_cr,step=step)
 
-                print('EPOCH:', epoch, 'SSIM:', ssims, 'BPP:', bpp_res,
-                      'Entropy loss:', aprox_entropy_loss.numpy())
-
+                #print('EPOCH:', epoch, 'SSIM:', ssims, 'BPP:', bpp_res,'Entropy loss:', aprox_entropy_loss.numpy())
+                print('EPOCH:', epoch, 'SSIM:', ssims)
                 main_variables_y = self.encoder_models[
                     0].trainable_variables + self.decoder_models[
                         0].trainable_variables
-                main_variables_cb = self.encoder_models[
+                main_variables_cbcr = self.encoder_models[
                     1].trainable_variables + self.decoder_models[
                         1].trainable_variables
-                main_variables_cr = self.encoder_models[
-                    2].trainable_variables + self.decoder_models[
-                        2].trainable_variables
 
                 #entropy_variables = self.entropy_model.trainable_variables
 
-                gradients_y = y_tape.gradient(losses[0], main_variables_y)
-                #gradients_cb = cb_tape.gradient(losses[1], main_variables_cb)
-                #gradients_cr = cr_tape.gradient(losses[2], main_variables_cr)
+                gradients_y = y_tape.gradient(loss_0, main_variables_y)
+                gradients_cbcr = cbcr_tape.gradient(loss_1, main_variables_cbcr)
 
                 #gradients_entropy = entropy_tape.gradient(
                 #    aprox_entropy_loss, entropy_variables)
@@ -255,16 +241,14 @@ class Training:
                 #optimizer_entropy.apply_gradients(
                 #    zip(gradients_entropy, entropy_variables))
                 optimizer_y.apply_gradients(zip(gradients_y, main_variables_y))
-                #optimizer_cb.apply_gradients(
-                #    zip(gradients_cb, main_variables_cb))
-                #optimizer_cr.apply_gradients(
-                #    zip(gradients_cr, main_variables_cr))
+                optimizer_cbcr.apply_gradients(zip(gradients_cbcr, main_variables_cbcr))
 
                 step+=1
-                #if step%10==0:
-                #    dec_out = tf.clip_by_value(convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, *decoded), 0, 1).numpy()
-                #    dec_out=np.round(dec_out * 255).astype(np.uint8)
-                #    Image.fromarray(dec_out[0]).save('prueba.png')
+                if step%10==0:
+                    dec_out = tf.clip_by_value(convert_to_rgb(ycbcr_inv_kernel, ycbcr_off, *decoded), 0, 1).numpy()
+                    dec_out=np.round(dec_out * 255).astype(np.uint8)
+                    comparison_image=np.concatenate([(img_norm.numpy()[0]*255).astype(np.uint8),dec_out[0]],axis=1)
+                    Image.fromarray(comparison_image).save('prueba.png')
                 #    self._save()
 
     def _save(self):
