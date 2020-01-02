@@ -100,9 +100,9 @@ class ProClass:
 
     def run_model(self,x):
         return [
-            self.models[0](x[0]),
-            self.models[1](x[1]),
-            self.models[1](x[2])
+            self.models[0](x[0]).numpy(),
+            self.models[1](x[1]).numpy(),
+            self.models[1](x[2]).numpy()
         ]
 
     def load(self,path):
@@ -123,7 +123,7 @@ class Encoder(ProClass):
 
         encoded = tf.concat(encoded, axis=3)
 
-        return np.round(encoded * 255)
+        return np.round(encoded * 255).astype(np.uint8)
 
 
 class Decoder(ProClass):
@@ -210,7 +210,7 @@ class Training:
                     ssim_cr=tf.reduce_mean(ssim_cr)
                     ssim_1=tf.reduce_mean(ssim_1)
 
-                    loss_1=(1 - ssim_1) / 2 + entropy_loss_coef/2 * tf.concat(entropy_losses[1:],axis=0)
+                    loss_1=(1 - ssim_1) / 2 + 0.01 * tf.concat(entropy_losses[1:],axis=0)
                     #loss_1=tf.reduce_mean((img_channels_1-decoded_1)**2) + entropy_loss_coef * tf.concat(entropy_losses[1:],axis=0)
 
                     ssims=[ssim_0.numpy(),ssim_cb.numpy(),ssim_cr.numpy()]
@@ -249,12 +249,16 @@ class Training:
                     encoder.load('checkpoints/encoder')
                     decoder.load('checkpoints/decoder')
                     encoded_val=encoder(x_val)
+                    _,h,w,c=encoded_val.shape
+                    encoded_val_save=encoded_val[0].reshape((h*4,w*8,c//32))
+                    Image.fromarray(encoded_val_save).save('val_encoded.png')
+
                     decoded_val=decoder(encoded_val)
                     encoded_val=tf.convert_to_tensor(encoded_val)
                     bpp_val=get_bpp(encoded_val,x_val.shape[1]*x_val.shape[2]).numpy()[0,0]
                     comparison_image=np.concatenate([x_val[0],decoded_val[0]],axis=1).astype(np.uint8)
-                    Image.fromarray(comparison_image).save('prueba.png')
-                    with open('prueba.txt','w') as f:
+                    Image.fromarray(comparison_image).save('val_comparison.png')
+                    with open('val_bpp.txt','w') as f:
                         f.write(str(bpp_val))
 
             entropy_loss_coef+=0.01
@@ -272,15 +276,4 @@ if __name__ == "__main__":
     img_val,_=read_dataset('../data/kodak_img')
 
     training_obj = Training()
-    training_obj(imgs, img_val, 15, 64, 0.01)
-
-    encoder=Encoder()
-    encoder.load('checkpoints/encoder')
-    decoder=Decoder()
-    decoder.load('checkpoints/decoder')
-
-    enc_out=encoder(imgs[:10])
-    print(enc_out.shape)
-    dec_out=decoder(enc_out)
-    print(dec_out.shape)
-    print(imgs.max(),dec_out.max())
+    training_obj(imgs, img_val, 30, 64, 0.01)
