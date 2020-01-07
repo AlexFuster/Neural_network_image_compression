@@ -1,4 +1,8 @@
 from utils import ProClass
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.layers import Dense, Flatten, Conv2D, Conv2DTranspose
+from utils import convert_to_rgb, ycbcr_inv_kernel, ycbcr_off
 
 class BaseDecoder(tf.keras.Model):
     def __init__(self):
@@ -43,5 +47,6 @@ class Decoder(ProClass):
 
         return np.round(decoded * 255).astype(np.uint8)
 
-    def uncompress(self,path):
-        pass
+    def uncompress(self,dataset_path,checkpoint_path):
+        output_dir=dataset_path.replace('compressed','uncompressed')
+        self._use_model(dataset_path,checkpoint_path,output_dir,in_cshape=96)

@@ -1,8 +1,8 @@
 from utils import ProClass
-
-def save_compressed(img,output_dir,filename):
-    assert (np.round(img)-img).sum()==0
-    Image.fromarray(img).save(output_dir+'/'+filename+'.png',optimize=True)
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.layers import Dense, Flatten, Conv2D, Conv2DTranspose
+from utils import convert_to_colourspace, ycbcr_kernel, ycbcr_off
 
 class BaseEncoder(tf.keras.Model):
     def __init__(self):
@@ -46,32 +46,6 @@ class Encoder(ProClass):
 
         return np.round(encoded * 255).astype(np.uint8)
 
-    def _compress_batch(self,x):
-        if len(x.shape==5):
-            x=x[0]
-        output_img=self(x)
-        n,h,w,c=output_img.shape
-        output_img=output_img.reshape((n,h*4,w*8,c//32)) #posibly wrong
-        for i in range(aux_n):
-            save_compressed(np.squeeze(output_img[i]),output_dir,filenames[i])
-            print('save {}'.format(filenames[i]))
-
-    def compress(self,dataset_path,checkpoint_path='checkpoints/encoder'):
+    def compress(self,dataset_path,checkpoint_path):
         output_dir=dataset_path+'_compressed'
-
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
-
-        self.load(checkpoint_path)
-
-        x,filenames=read_dataset(dataset_path)
-        tot_n=x.shape[0]
-        if len(x.shape)==1:
-            batch_size=1
-        else:
-            batch_size=4
-
-        for b in range(tot_n//batch_size + int((tot_n%batch_size)!=0)):
-            lower_index=b*batch_size
-            upper_index=min(tot_n,lower_index+batch_size)
-            output_img=self._compress_batch(x[lower_index:upper_index],filenames[lower_index:upper_index])
+        self._use_model(dataset_path,checkpoint_path,output_dir,in_cshape=3)

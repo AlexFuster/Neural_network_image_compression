@@ -1,3 +1,4 @@
+import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Conv2DTranspose
 import tensorflow as tf
 from utils import convert_to_rgb, convert_to_colourspace, ycbcr_kernel, ycbcr_inv_kernel, ycbcr_off, read_dataset
@@ -5,6 +6,7 @@ import numpy as np
 from PIL import Image
 from encoder import BaseEncoder, Encoder
 from decoder import BaseDecoder, Decoder
+import os
 #import matplotlib.pyplot as plt
 
 get_png_size = lambda xin: tf.strings.length(tf.image.encode_png(xin))
@@ -49,7 +51,7 @@ class Training:
         self.entropy_model = Entropynet()
         self.summary_writer = tf.summary.create_file_writer('logs')
 
-    def __call__(self, x, x_val, max_epochs, batch_size, entropy_loss_coef):
+    def __call__(self, x, x_val_path, max_epochs, batch_size, entropy_loss_coef):
 
         optimizer_y = tf.keras.optimizers.Adam(1e-4)
         optimizer_cbcr = tf.keras.optimizers.Adam(1e-4)
@@ -57,8 +59,15 @@ class Training:
         tot_pixels_compressed=x.shape[1] * x.shape[2]
         train_ds = tf.data.Dataset.from_tensor_slices(x).shuffle(10000).batch(batch_size)
         step=0
+        comp_val_path=x_val_path+'_compressed'
         encoder=Encoder()
         decoder=Decoder()
+        img_val,filenames_val=read_dataset(x_val_path)
+        img_val_shape_dict={}
+        for i in range(len(filenames_val)):
+            curr_img_shape=img_val[i].shape
+            img_val_shape_dict[filenames_val[i]]=curr_img_shape[-2]*curr_img_shape[-3]
+        img_val=None
 
         for epoch in range(self.epoch, max_epochs):
             self.epoch = epoch
@@ -140,37 +149,31 @@ class Training:
                 optimizer_entropy.apply_gradients(zip(gradients_entropy, entropy_variables))
 
                 step+=1
-                if x_val is not None and step%10==0:
+                if x_val_path is not None and step%10==0:
                     self._save()
+                    encoder.compress(x_val_path,'../checkpoints/encoder')
+                    decoder.uncompress(comp_val_path,'../checkpoints/decoder')
 
-                    encoder.load('checkpoints/encoder')
-                    decoder.load('checkpoints/decoder')
-                    encoded_val=encoder(x_val)
-                    _,h,w,c=encoded_val.shape
-                    encoded_val_save=encoded_val[0].reshape((h*4,w*8,c//32))
-                    Image.fromarray(encoded_val_save).save('val_encoded.png')
-
-                    decoded_val=decoder(encoded_val)
-                    encoded_val=tf.convert_to_tensor(encoded_val)
-                    bpp_val=get_bpp(encoded_val,x_val.shape[1]*x_val.shape[2]).numpy()[0,0]
-                    comparison_image=np.concatenate([x_val[0],decoded_val[0]],axis=1).astype(np.uint8)
-                    Image.fromarray(comparison_image).save('val_comparison.png')
-                    with open('val_bpp.txt','w') as f:
-                        f.write(str(bpp_val))
+                    bpp_filepath=comp_val_path+'/val_bpp.txt'
+                    os.remove(bpp_filepath)
+                    with open(bpp_filepath,'a+') as f:
+                        for filename in os.listdir(comp_val_path):
+                            if filename.endswith('.png'):
+                                bpp_val=8*os.path.getsize(comp_val_path+'/'+filename)/img_val_shape_dict[filename.replace('.png','')]
+                                f.write(filename+'\t'+str(bpp_val)+'\n')
 
             entropy_loss_coef+=0.01
 
     def _save(self):
         for i,name in enumerate(_MODELS):
-            self.encoder_models[i].save_weights('checkpoints/encoder{}'.format(name))
-            self.decoder_models[i].save_weights('checkpoints/decoder{}'.format(name))
+            self.encoder_models[i].save_weights('../checkpoints/encoder{}'.format(name))
+            self.decoder_models[i].save_weights('../checkpoints/decoder{}'.format(name))
 
         print('checkpoint saved')
 
 
 if __name__ == "__main__":
-    imgs,_ = read_dataset('../data/imagenet_patches')
-    img_val,_=read_dataset('../data/kodak_img')
+    imgs,_ = read_dataset('../../data/imagenet_patches')
 
     training_obj = Training()
-    training_obj(imgs, img_val, 30, 64, 0.01)
+    training_obj(imgs, '../../data/kodak_img', 30, 64, 0.01)
