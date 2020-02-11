@@ -13,7 +13,7 @@ class BaseDecoder(tf.keras.Model):
         #self.dconv4 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
         self.dconv5 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
         self.dconv6 = Conv2DTranspose(64,3,1,'SAME',activation=tf.nn.leaky_relu)
-        self.dconv7 = Conv2DTranspose(64,5,2,'SAME',activation=tf.nn.leaky_relu)
+        self.dconv7 = Conv2DTranspose(32,5,1,'SAME',activation=tf.nn.leaky_relu)
         self.dconv8 = Conv2DTranspose(1,5,2,'SAME',activation=tf.nn.leaky_relu)
 
     def call(self, x):

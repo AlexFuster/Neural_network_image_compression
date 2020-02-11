@@ -32,15 +32,14 @@ class ProClass:
             x=x[0]
         output_img=x
         n,h,w,c=output_img.shape
-        if in_cshape==96 and c==3:
-            output_img=np.concatenate([output_img[:,:,:,i].reshape((n,h//4,w//8,32)) for i in range(3)],axis=3)
+        #if in_cshape==96 and c==3:
+        #    output_img=np.concatenate([tf.one_hot(output_img[:,:,:,i],256,axis=-1) for i in range(3)],axis=3)
+
         output_img=self(output_img)
         n,h,w,c=output_img.shape
-        if c==96:
-            output_img=np.concatenate([output_img[:,:,:,32*i:32*(i+1)].reshape((n,h*4,w*8,1)) for i in range(3)],axis=3)
 
         for i in range(n):
-            save_img(np.squeeze(output_img[i]),output_dir,filenames[i])
+            save_img(np.squeeze(output_img[i]).astype(np.uint8),output_dir,filenames[i])
             print('save {}'.format(filenames[i]))
 
     def _use_model(self,dataset_path,checkpoint_path,output_dir,in_cshape):

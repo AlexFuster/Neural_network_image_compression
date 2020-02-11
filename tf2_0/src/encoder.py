@@ -8,13 +8,14 @@ class BaseEncoder(tf.keras.Model):
     def __init__(self):
         super(BaseEncoder, self).__init__()
         self.conv1 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv2 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
+        self.conv2 = Conv2D(64, 5, 1, 'SAME', activation=tf.nn.leaky_relu)
         self.conv3 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         self.conv4 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         #self.conv5 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
         #self.conv6 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         #self.conv7 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv8 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
+        #self.conv8 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
+        self.conv8 = Conv2D(256, 5, 2, 'SAME', activation=tf.nn.softmax)
 
     def call(self, x):
         x = self.conv1(x)
@@ -42,9 +43,14 @@ class Encoder(ProClass):
 
         encoded = self.run_model(img_channels)
 
-        encoded = tf.concat(encoded, axis=3)
+        aux=[]
+        for i in range(3):
+            aux.append(np.stack([encoded[i][:,:,:,j]*j for j in range(256)],axis=-1).sum(axis=-1))
 
-        return np.round(encoded * 255).astype(np.uint8)
+        encoded=np.stack(aux,axis=-1).round().astype(np.uint8)
+        #encoded=np.stack([tf.math.argmax(encoded[i],axis=-1) for i in range(3)],axis=-1).astype(np.uint8)
+
+        return encoded
 
     def compress(self,dataset_path,checkpoint_path):
         output_dir=dataset_path+'_compressed'

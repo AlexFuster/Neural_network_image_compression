@@ -10,4 +10,4 @@ if __name__=="__main__":
         checkpoint_path='../checkpoints/decoder'
 
     decoder=Decoder()
-    decoder.compress(dataset_path,checkpoint_name)
+    decoder.uncompress(dataset_path,checkpoint_path)
