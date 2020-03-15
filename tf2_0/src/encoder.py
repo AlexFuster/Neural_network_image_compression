@@ -8,7 +8,7 @@ class BaseEncoder(tf.keras.Model):
     def __init__(self):
         super(BaseEncoder, self).__init__()
         self.conv1 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv2 = Conv2D(64, 5, 1, 'SAME', activation=tf.nn.leaky_relu)
+        self.conv2 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
         self.conv3 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         self.conv4 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         #self.conv5 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)

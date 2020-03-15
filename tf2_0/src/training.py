@@ -1,6 +1,5 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Conv2DTranspose
-import tensorflow as tf
 from utils import convert_to_rgb, convert_to_colourspace, ycbcr_kernel, ycbcr_inv_kernel, ycbcr_off, read_dataset
 import numpy as np
 from PIL import Image
@@ -8,6 +7,11 @@ from encoder import BaseEncoder, Encoder
 from decoder import BaseDecoder, Decoder
 import os
 #import matplotlib.pyplot as plt
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
+config = ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
 
 get_png_size = lambda xin: tf.strings.length(tf.image.encode_png(xin))
 
@@ -22,25 +26,6 @@ def get_bpp(encoded,tot_pixels_compressed=None):
     return bpp
 
 _MODELS = ['Y','CbCr']
-
-class Entropynet(tf.keras.Model):
-    def __init__(self):
-        super(Entropynet, self).__init__()
-        self.conv1 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv2 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv3 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
-        self.flatten = Flatten()
-        self.dense1 = Dense(512)
-        self.dense2 = Dense(1)
-
-    def call(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.flatten(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        return tf.clip_by_value(x, 0, 8)
 
 class Training:
     def __init__(self):
@@ -57,7 +42,6 @@ class Training:
 
         optimizer_y = tf.keras.optimizers.Adam(1e-4)
         optimizer_cbcr = tf.keras.optimizers.Adam(1e-4)
-        optimizer_entropy = tf.keras.optimizers.Adam(1e-4)
         tot_pixels_compressed=x.shape[1] * x.shape[2]
         train_ds = tf.data.Dataset.from_tensor_slices(x).shuffle(10000).batch(batch_size)
         step=0
@@ -192,7 +176,7 @@ class Training:
 
 
 if __name__ == "__main__":
-    imgs,_ = read_dataset('../../data/imagenet_patches')
+    imgs,_ = read_dataset('../../data/imagenet_patches_256')
 
     training_obj = Training()
-    training_obj(imgs, '../../data/kodak_img', 15, 64, 0.001)
+    training_obj(imgs, '../../data/kodak_img', 30, 16, 0.001)
