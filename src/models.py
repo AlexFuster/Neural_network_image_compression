@@ -120,7 +120,7 @@ class Autoencoder(tf.keras.Model):
                 step+=1
 
 if __name__ == "__main__":
-    imgs,_ = read_dataset('../../data/imagenet_patches')
+    imgs,_ = read_dataset('../data/imagenet_patches')
 
     training_obj = Autoencoder()
-    training_obj.training_loop(imgs, '../../data/kodak_img', 300, 32, 0.01)
+    training_obj.training_loop(imgs, '../data/kodak_img', 300, 32, 0.01)
