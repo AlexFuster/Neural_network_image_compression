@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 import os
 from PIL import Image
-_MODELS = ['Y','CbCr']
 
 ycbcr_kernel=np.array([[0.299,0.587,0.114],[-0.16874,-0.33126,0.5],[0.5,-0.41869,-0.08131]])
 ycbcr_inv_kernel=np.linalg.inv(ycbcr_kernel)
@@ -12,20 +11,23 @@ pca_kernel=np.array([[1/3,1/3,1/3],[-0.5,0,0.5],[0.25,-0.5,0.25]])
 pca_inv_kernel=np.linalg.inv(pca_kernel)
 pca_off=np.array([0,0.5,0.5])
 
-class ProClass:
+class Model(tf.keras.Model):
     def __init__(self,model_class):
-        self.models=[model_class(),model_class()]
+        super(Model, self).__init__()
+        self.model_y=model_class()
+        self.model_cbcr=model_class()
+        self.train_mode=False
 
     def run_model(self,x):
-        return [
-            self.models[0](x[0]).numpy(),
-            self.models[1](x[1]).numpy(),
-            self.models[1](x[2]).numpy()
-        ]
+        x_0=x[0]
+        x_1=tf.concat(x[1:],axis=0)
+        out_0=self.model_y(x_0)
+        out_1=self.model_cbcr(x_1)
+        out_1,out_2=tf.split(out_1,2,axis=0)
+        return [out_0,out_1,out_2]
 
     def load(self,path):
-        for i,name in enumerate(_MODELS):
-            self.models[i].load_weights(path+str(name))
+        self.load_weights(path)
 
     def _feed_batch(self,x,filenames,output_dir,in_cshape):
         if len(x.shape)==5:
@@ -35,12 +37,15 @@ class ProClass:
         #if in_cshape==96 and c==3:
         #    output_img=np.concatenate([tf.one_hot(output_img[:,:,:,i],256,axis=-1) for i in range(3)],axis=3)
 
-        output_img=self(output_img)
+        output_img=self(tf.convert_to_tensor(output_img))
+        output_img=output_img.numpy().round().astype(np.uint8)
         n,h,w,c=output_img.shape
-
+        res={}
         for i in range(n):
-            save_img(np.squeeze(output_img[i]).astype(np.uint8),output_dir,filenames[i])
+            save_img(np.squeeze(output_img[i]),output_dir,filenames[i])
+            res[filenames[i]]=output_img[i]
             print('save {}'.format(filenames[i]))
+        return res
 
     def _use_model(self,dataset_path,checkpoint_path,output_dir,in_cshape):
         if not os.path.exists(output_dir):
@@ -54,11 +59,12 @@ class ProClass:
             batch_size=1
         else:
             batch_size=4
-
+        res={}
         for b in range(tot_n//batch_size + int((tot_n%batch_size)!=0)):
             lower_index=b*batch_size
             upper_index=min(tot_n,lower_index+batch_size)
-            output_img=self._feed_batch(x[lower_index:upper_index],filenames[lower_index:upper_index],output_dir,in_cshape)
+            res.update(self._feed_batch(x[lower_index:upper_index],filenames[lower_index:upper_index],output_dir,in_cshape))
+        return res
 
 def _project(kernel,tensor_0,tensor_1,tensor_2):
     out_0=tensor_0*kernel[0,0]+tensor_1*kernel[0,1]+tensor_2*kernel[0,2]

@@ -1,4 +1,4 @@
-from utils import ProClass
+from utils import Model
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Conv2DTranspose
@@ -8,7 +8,7 @@ class BaseEncoder(tf.keras.Model):
     def __init__(self):
         super(BaseEncoder, self).__init__()
         self.conv1 = Conv2D(32, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
-        self.conv2 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
+        self.conv2 = Conv2D(64, 5, 1, 'SAME', activation=tf.nn.leaky_relu)
         self.conv3 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         self.conv4 = Conv2D(64, 3, 1, 'SAME', activation=tf.nn.leaky_relu)
         #self.conv5 = Conv2D(64, 5, 2, 'SAME', activation=tf.nn.leaky_relu)
@@ -32,26 +32,26 @@ class BaseEncoder(tf.keras.Model):
         x = self.conv8(x)
         return tf.clip_by_value(x, 0, 1)
 
-class Encoder(ProClass):
+class Encoder(Model):
     def __init__(self):
         super(Encoder, self).__init__(BaseEncoder)
 
+    def preprocess(self,x):
+        x = tf.cast(x,tf.float32) / 255
+        return convert_to_colourspace(ycbcr_kernel, ycbcr_off, x)
+
     def __call__(self, x):
-        img_norm = x.astype(np.float32) / 255
-
-        img_channels = convert_to_colourspace(ycbcr_kernel, ycbcr_off, img_norm)
-
-        encoded = self.run_model(img_channels)
-
-        aux=[]
-        for i in range(3):
-            aux.append(np.stack([encoded[i][:,:,:,j]*j for j in range(256)],axis=-1).sum(axis=-1))
-
-        encoded=np.stack(aux,axis=-1).round().astype(np.uint8)
-        #encoded=np.stack([tf.math.argmax(encoded[i],axis=-1) for i in range(3)],axis=-1).astype(np.uint8)
-
-        return encoded
+        if not self.train_mode:
+            x=self.preprocess(x)
+        encoded = self.run_model(x)
+        
+        tf_range=tf.cast(tf.range(256),tf.float32)
+        res=tf.stack([tf.reduce_sum(encoded[i]*tf_range,-1) for i in range(3)],-1)
+        if self.train_mode:
+            return res/255,encoded
+        else:
+            return res
 
     def compress(self,dataset_path,checkpoint_path):
         output_dir=dataset_path+'_compressed'
-        self._use_model(dataset_path,checkpoint_path,output_dir,in_cshape=3)
+        return self._use_model(dataset_path,checkpoint_path,output_dir,in_cshape=3)
